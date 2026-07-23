@@ -62,7 +62,8 @@ function New.confirm(picker, item)
         branch_name = item.branch
     end
 
-    worktrees.new_worktree(existing_branch, branch_name)
+    -- Skip folder and base branch prompts: use branch name as folder, base on current HEAD
+    worktrees.new_worktree(existing_branch, branch_name, { folder = branch_name, base_branch = "" })
 end
 
 ---@type snacks.picker.Config

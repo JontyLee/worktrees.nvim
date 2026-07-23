@@ -14,6 +14,20 @@ M.custom_job = function(cmd, args)
     })
 end
 
+M.sync_job = function(cmd, args)
+    local command_string = cmd .. " " .. table.concat(args, " ")
+    status:info("Running command: " .. command_string)
+
+    local job = Job:new({
+        command = cmd,
+        args = args,
+        cwd = vim.loop.cwd(),
+        enable_recording = true,
+    })
+    local output, code = job:sync()
+    return output, code, job:stderr_result()
+end
+
 M.is_bare_repo = function()
     status:info("Running command: " .. "git rev-parse --is-bare-repository")
 

@@ -63,14 +63,15 @@ end
 
 ---@param existing_branch? boolean Use existing branch
 ---@param branch_name? string Branch name to use. Prompts for the name if not provided
-M.new_worktree = function(existing_branch, branch_name)
+---@param worktree_opts? {folder?: string, base_branch?: string} Options to skip prompts (used by Snacks picker)
+M.new_worktree = function(existing_branch, branch_name, worktree_opts)
     local branch = branch_name or vim.fn.input("Branch name: ")
     if branch == "" then
         status:warn("No branch name provided. Aborting...")
         return
     end
 
-    local folder = vim.fn.input("Folder name (optional): ")
+    local folder = (worktree_opts and worktree_opts.folder) or vim.fn.input("Folder name (optional): ")
     folder = folder == "" and branch or folder
 
     local relative_path =
@@ -91,7 +92,7 @@ M.new_worktree = function(existing_branch, branch_name)
         table.insert(args, branch)
         table.insert(args, relative_path)
 
-        local base_branch = vim.fn.input("Base branch name (optional): ")
+        local base_branch = (worktree_opts and worktree_opts.base_branch) or vim.fn.input("Base branch name (optional): ")
 
         if base_branch ~= "" then
             table.insert(args, base_branch)
@@ -101,13 +102,14 @@ M.new_worktree = function(existing_branch, branch_name)
         table.insert(args, branch)
     end
 
-    local _, code = jobs.custom_job(cmd, args):sync()
+    local _, code, stderr = jobs.sync_job(cmd, args)
     if code ~= 0 then
-        status:warn("Could not create worktree with arguments. Aborting...")
+        local err_msg = (stderr and #stderr > 0) and table.concat(stderr, "\n") or "unknown error"
+        status:warn(string.format("Could not create worktree. Git error: %s", err_msg))
         return
     end
     if M._options.hooks.on_add then
-        M._options.hooks.on_add(folder, relative_path, args[#args - 1])
+        M._options.hooks.on_add(folder, relative_path, branch)
     end
 
     status:info_nvim("Worktree created")
