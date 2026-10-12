@@ -3,6 +3,10 @@ local status = require("worktrees.status")
 
 local M = {}
 
+-- plenary defaults to 5000 ms, but git worktree add on large repos can spend
+-- minutes checking out files while the job itself succeeds.
+local SYNC_TIMEOUT_MS = 120000
+
 M.custom_job = function(cmd, args)
     local command_string = cmd .. " " .. table.concat(args, " ")
     status:info("Running command: " .. command_string)
@@ -24,7 +28,7 @@ M.sync_job = function(cmd, args)
         cwd = vim.loop.cwd(),
         enable_recording = true,
     })
-    local output, code = job:sync()
+    local output, code = job:sync(SYNC_TIMEOUT_MS)
     return output, code, job:stderr_result()
 end
 
@@ -35,7 +39,7 @@ M.is_bare_repo = function()
         command = "git",
         args = { "rev-parse", "--is-bare-repository" },
         cwd = vim.loop.cwd(),
-    }):sync()
+    }):sync(SYNC_TIMEOUT_MS)
 
     if code ~= 0 then
         status:warn("Unable to check if repo is bare. Aborting...")
@@ -52,7 +56,7 @@ M.toplevel_dir = function()
         command = "git",
         args = { "rev-parse", "--show-toplevel" },
         cwd = vim.loop.cwd(),
-    }):sync()
+    }):sync(SYNC_TIMEOUT_MS)
 
     if code ~= 0 then
         -- Only info when this fails as it is expected when repo is bare
@@ -70,7 +74,7 @@ M.list_worktrees = function()
         command = "git",
         args = { "worktree", "list", "--porcelain" },
         cwd = vim.loop.cwd(),
-    }):sync()
+    }):sync(SYNC_TIMEOUT_MS)
 
     if code ~= 0 then
         status:warn("Unable to list git worktrees. Aborting...")
