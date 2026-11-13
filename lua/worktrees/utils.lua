@@ -4,6 +4,20 @@ local status = require("worktrees.status")
 
 local M = {}
 
+-- Git 输出路径在 Windows 上永远用正斜杠（`C:/xxx`），而 plenary Path 按
+-- 平台分隔符切分（Windows 是 `\`）。不先归一化的话 `Path:new("C:/a/b"):parent()`
+-- 会把 `C:/a/b` 当成一个不可分割的整体，拼接出的 worktree 路径是
+-- `C:/a/b\worktree` 这样的混合路径，git 解析失败后实际落盘位置就漂到
+-- cwd 根目录下（表现：worktree 被建到 C 盘根目录 / 项目根目录平级之外的奇怪位置）。
+---@param p string
+---@return string
+local function normalize_git_path(p)
+    if Path.path.sep == "\\" then
+        return (p:gsub("/", "\\"))
+    end
+    return p
+end
+
 -- Setup string splitting
 M.split_string = function(s, sep)
     local fields = {}
@@ -38,7 +52,8 @@ M.get_git_path_info = function()
     if toplevel == nil then
         git_info.toplevel_path = nil
     else
-        git_info.toplevel_path = Path:new(table.concat(toplevel)):parent()
+        git_info.toplevel_path =
+            Path:new(normalize_git_path(table.concat(toplevel))):parent()
     end
 
     return git_info
@@ -58,7 +73,13 @@ local function get_project_name()
     end
 
     if projectname == nil or projectname == "" then
-        projectname = get_path_basename(vim.loop.cwd())
+        -- cwd 来自 vim.loop，平台原生分隔符，Windows 上是反斜杠，
+        -- 与 get_path_basename 的 "/" 分隔符不匹配，basename 会取到整条路径
+        if vim.loop.os_uname().sysname:find("Windows") then
+            projectname = get_path_basename(normalize_git_path(vim.loop.cwd()))
+        else
+            projectname = get_path_basename(vim.loop.cwd())
+        end
     end
 
     projectname = projectname:gsub("%.git$", "")
@@ -110,6 +131,8 @@ M.get_worktree_path = function(folder, worktree_path)
 
     return path:make_relative(vim.loop.cwd())
 end
+
+M._normalize_git_path = normalize_git_path
 
 M.get_worktrees = function()
     local worktrees = jobs.list_worktrees()
